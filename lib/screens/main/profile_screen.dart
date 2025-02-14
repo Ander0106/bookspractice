@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -39,10 +40,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (userDoc.exists) {
         var userData = userDoc.data() as Map<String, dynamic>;
-        _fullNameController.text = userData['fullName'] ?? '';
-        _professionController.text = userData['profession'] ?? '';
-        _birthDateController.text = userData['birthDate'] ?? '';
-        _userProfilePicUrl = userData['profilePicUrl'];
+        setState(() {
+          // 🔥 Agregamos setState para actualizar la UI
+          _fullNameController.text = userData['fullName'] ?? '';
+          _professionController.text = userData['profession'] ?? '';
+          _birthDateController.text = userData['birthDate'] ?? '';
+          _userProfilePicUrl = userData['profilePicUrl'];
+        });
       }
     }
   }
@@ -70,12 +74,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       String downloadUrl = await storageRef.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      print("Error al subir la imagen: $e");
+      print("Error al subir la image: $e");
       return null;
     }
   }
 
   Future<void> _saveUserData() async {
+    print("HOLAAAA2222");
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       String? profilePicUrl = _image != null
@@ -103,8 +108,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Perfil de Usuario"),
+        title: const Text(
+          "Perfil de Usuario",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.green.shade700, // Tonalidad de verde más oscura
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              context.go('/login'); // Redirigir al login
+            },
+            tooltip: "Cerrar sesión",
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -113,15 +131,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             key: _formKey,
             child: Column(
               children: [
-                // Mostrar imagen de perfil
                 CircleAvatar(
                   radius: 60,
-                  backgroundImage: _image == null
-                      ? (_userProfilePicUrl != null
-                          ? NetworkImage(_userProfilePicUrl!)
-                          : null)
-                      : FileImage(_image!) as ImageProvider,
-                  child: _image == null && _userProfilePicUrl == null
+                  backgroundImage: _image != null
+                      ? FileImage(_image!) as ImageProvider
+                      : (_userProfilePicUrl != null &&
+                              _userProfilePicUrl!.isNotEmpty
+                          ? NetworkImage(
+                              _userProfilePicUrl!) // Carga desde Firebase Storage
+                          : const AssetImage('assets/default_profile.png')
+                              as ImageProvider),
+                  child: _image == null &&
+                          (_userProfilePicUrl == null ||
+                              _userProfilePicUrl!.isEmpty)
                       ? const Icon(Icons.person, size: 60, color: Colors.white)
                       : null,
                 ),
@@ -147,8 +169,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderSide: BorderSide(color: Colors.green.shade300),
                     ),
                   ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "La reseña no puede estar vacía.";
+                    } else if (value.trim().length < 10) {
+                      return "La reseña debe tener al menos 10 caracteres.";
+                    }
+                    return null;
+                  },
                 ),
-
+                const SizedBox(
+                  height: 20.0,
+                ),
                 // Profesión
                 TextFormField(
                   controller: _professionController,
@@ -163,8 +195,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderSide: BorderSide(color: Colors.green.shade300),
                     ),
                   ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Profesion no puede estar vacía.";
+                    }
+                    return null;
+                  },
                 ),
-
+                const SizedBox(
+                  height: 20.0,
+                ),
                 // Fecha de nacimiento
                 TextFormField(
                   controller: _birthDateController,
@@ -179,6 +219,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderSide: BorderSide(color: Colors.green.shade300),
                     ),
                   ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "La Fecha no puede estar vacía.";
+                    }
+                    return null;
+                  },
                 ),
 
                 const SizedBox(height: 20),
@@ -186,7 +232,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // Botón para editar o guardar
                 _isEditing
                     ? ElevatedButton(
-                        onPressed: _saveUserData,
+                        onPressed: () {
+                          if (_formKey.currentState!.validate()) {
+                            _saveUserData();
+                            print("HOLAAAA");
+                          }
+                        },
                         style: ElevatedButton.styleFrom(
                           foregroundColor: Colors.white,
                           backgroundColor: Colors.green.shade700,
